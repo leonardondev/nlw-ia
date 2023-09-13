@@ -21,6 +21,9 @@
   "dependencies": {
     "@fastify/multipart": "^7.7.3",
     "@prisma/client": "^5.2.0",
-    "fastify": "^4.23.0"
+    "dotenv": "^16.3.1",
+    "fastify": "^4.23.0",
+    "openai": "^4.6.0",
+    "zod": "^3.22.2"
   }
 }

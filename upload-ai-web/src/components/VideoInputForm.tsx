@@ -2,13 +2,29 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { api } from '@/lib/axios'
 import { getFFmpeg } from '@/lib/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 import { FileVideo, Upload } from 'lucide-react'
 import { ChangeEvent, FormEvent, useMemo, useRef, useState } from 'react'
 
-export function VideoInputForm() {
+type Status = 'waiting' | 'converting' | 'uploading' | 'generating' | 'success'
+
+const statusMessages = {
+  converting: 'Convertendo...',
+  generating: 'Transcrevendo...',
+  uploading: 'Carregando...',
+  success: 'Sucesso!',
+}
+
+interface VideoInputFormProps {
+  onVideoUploaded: (id: string) => void
+}
+
+export function VideoInputForm(props: VideoInputFormProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [status, setStatus] = useState<Status>('waiting')
+
   const promptInputRef = useRef<HTMLTextAreaElement>(null)
 
   function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -63,16 +79,33 @@ export function VideoInputForm() {
   async function handleUploadVideo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!videoFile) {
+    if (!videoFile || !promptInputRef.current?.value) {
       return
     }
 
-    const prompt = promptInputRef.current?.value
+    setStatus('converting')
 
     /* converter o video em áudio */
     const audioFile = await convertVideoToAudio(videoFile)
+    const data = new FormData()
 
-    console.log({ prompt, audioFile })
+    data.append('file', audioFile)
+
+    setStatus('uploading')
+    const response = await api.post('/videos', data)
+    const videoId = response.data.video.id
+    const prompt = promptInputRef.current.value
+
+    setStatus('generating')
+    console.log('Transcription started.')
+    await api.post(`/videos/${videoId}/transcription`, {
+      prompt,
+    })
+
+    console.log('Transcription finished.')
+    setStatus('success')
+
+    props.onVideoUploaded(videoId)
   }
 
   const previewURL = useMemo(() => {
@@ -118,11 +151,22 @@ export function VideoInputForm() {
           ref={promptInputRef}
           id="transcription_prompt"
           placeholder="Inclua palavras-chave mencionadas no video separadas por vírgula (,)"
+          disabled={status !== 'waiting'}
         />
       </div>
 
-      <Button className="w-full" type="submit">
-        Carregar vídeo <Upload className="w-4 h-4 ml-2" />
+      <Button
+        className="w-full data-[success=true]:bg-emerald-400"
+        data-success={status === 'success'}
+        disabled={status !== 'waiting'}
+      >
+        {status === 'waiting' ? (
+          <>
+            Carregar vídeo <Upload className="w-4 h-4 ml-2" />
+          </>
+        ) : (
+          statusMessages[status]
+        )}
       </Button>
     </form>
   )

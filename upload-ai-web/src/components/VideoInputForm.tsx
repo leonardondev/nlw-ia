@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
 import { api } from '@/lib/axios'
 import { getFFmpeg } from '@/lib/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
@@ -24,6 +25,7 @@ interface VideoInputFormProps {
 export function VideoInputForm(props: VideoInputFormProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [status, setStatus] = useState<Status>('waiting')
+  const [progress, setProgress] = useState<number>(0)
 
   const promptInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -37,13 +39,14 @@ export function VideoInputForm(props: VideoInputFormProps) {
     const selectedFile = files[0]
 
     setVideoFile(selectedFile)
+    setStatus('waiting')
   }
 
   async function convertVideoToAudio(video: File) {
     console.log('Convert started.')
-    const file = await fetchFile(video)
+    setProgress(0)
 
-    console.log('File')
+    const file = await fetchFile(video)
 
     const ffmpeg = await getFFmpeg()
     await ffmpeg.writeFile('input.mp4', file)
@@ -51,7 +54,8 @@ export function VideoInputForm(props: VideoInputFormProps) {
     // ffmpeg.on('log', (log) => console.log(log))
 
     ffmpeg.on('progress', (conversion) => {
-      console.log('Convert progress: ' + Math.round(conversion.progress * 100))
+      setProgress(Math.round(conversion.progress * 100))
+      console.info('Convert progress: ' + Math.round(conversion.progress * 100))
     })
 
     await ffmpeg.exec([
@@ -73,6 +77,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
     })
 
     console.log('Convert finished.')
+    setProgress(0)
     return audioFile
   }
 
@@ -98,10 +103,22 @@ export function VideoInputForm(props: VideoInputFormProps) {
 
     setStatus('generating')
     console.log('Transcription started.')
+
+    let fakeProgress = 8
+    setProgress(fakeProgress)
+
+    const loopInterval = setInterval(() => {
+      fakeProgress += 19
+      setProgress(fakeProgress % 100)
+    }, 2000)
+
     await api.post(`/videos/${videoId}/transcription`, {
       prompt,
     })
 
+    clearInterval(loopInterval)
+
+    setProgress(100)
     console.log('Transcription finished.')
     setStatus('success')
 
@@ -168,6 +185,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
           statusMessages[status]
         )}
       </Button>
+      <Progress value={progress} />
     </form>
   )
 }
